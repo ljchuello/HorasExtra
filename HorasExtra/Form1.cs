@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using Libreria;
 
@@ -60,7 +63,7 @@ namespace HorasExtra
 
                     // Llenamos
                     oCalculo.CodEmpleado = row.CodEmpleado;
-                    oCalculo.Hora = row.Hora;
+                    oCalculo.Dia = row.Hora;
 
                     // Obtenemos la difrencia
                     TimeSpan timeSpan = row.Hora - row.Hora.Date;
@@ -70,20 +73,81 @@ namespace HorasExtra
                     {
                         // Atrasos
                         case ORegistro.ETipo.Entrada:
-                            // Si superas las 8,5 horas es contado como atraso
-                            if (timeSpan.TotalHours > 8.5)
+                            if (row.Hora.DayOfWeek != DayOfWeek.Saturday & row.Hora.DayOfWeek != DayOfWeek.Sunday)
                             {
-                                oCalculo.MinAtraso = oCalculo.MinAtraso + timeSpan.TotalMinutes;
+                                // Si superas las 8,5 horas es contado como atraso
+                                if (timeSpan.TotalHours > 8.5)
+                                {
+                                    oCalculo.MinAtraso = timeSpan.TotalMinutes-510;
+                                    oCalculo.Tipo = ORegistro.ETipo.Entrada;
+                                    listCalculo.Add(oCalculo);
+                                }
+                                else
+                                {
+                                    oCalculo.MinAtraso = 0;
+                                    oCalculo.Tipo = ORegistro.ETipo.Entrada;
+                                    listCalculo.Add(oCalculo);
+                                }
                             }
                             break;
 
                         case ORegistro.ETipo.Salida:
-
+                            if (row.Hora.DayOfWeek != DayOfWeek.Saturday & row.Hora.DayOfWeek != DayOfWeek.Sunday)
+                            {
+                                // Si supera los 1060 minutos cuenta como hora extra
+                                if (timeSpan.TotalMinutes >= 1060)
+                                {
+                                    oCalculo.MinExtra50 = (row.Hora - row.Hora.Date.AddHours(17.50)).TotalMinutes;
+                                    oCalculo.Tipo = ORegistro.ETipo.Salida;
+                                    listCalculo.Add(oCalculo);
+                                }
+                                else
+                                {
+                                    oCalculo.MinExtra50 = 0;
+                                    oCalculo.Tipo = ORegistro.ETipo.Salida;
+                                    listCalculo.Add(oCalculo);
+                                }
+                            }
                             break;
                     }
                 }
 
-                MessageBox.Show($"Finalizado");
+                DataTable dataTable = new DataTable();
+                dataTable.Columns.Add("Dia", typeof(string));
+                dataTable.Columns.Add("Entrada", typeof(string));
+                dataTable.Columns.Add("Atraso", typeof(string));
+                dataTable.Columns.Add("Salida", typeof(string));
+                dataTable.Columns.Add("Extra", typeof(string));
+
+                double Atraso = 0;
+                double Extra = 0;
+
+                var fecha = listCalculo.GroupBy(x => x.Dia.Date).Select(y => y.First()).ToList();
+
+                foreach (var row in fecha)
+                {
+                    OCalculo entrada = listCalculo.FirstOrDefault(x => x.Dia.Date == row.Dia.Date & x.Tipo == ORegistro.ETipo.Entrada) ?? new OCalculo();
+                    OCalculo salida = listCalculo.FirstOrDefault(x => x.Dia.Date == row.Dia.Date & x.Tipo == ORegistro.ETipo.Salida) ?? new OCalculo();
+
+                    Atraso = Atraso + entrada.MinAtraso;
+                    Extra = Extra + entrada.MinExtra50;
+
+                    dataTable.Rows.Add(
+                        $"{row.Dia:yyyy-MM-dd}",
+                        $"{entrada.Dia:HH:mm:ss}",
+                        $"{entrada.MinAtraso:n2}",
+                        $"{salida.Dia:HH:mm:ss}",
+                        $"{salida.MinExtra50:n2}");
+                }
+
+                dataGridView1.DataSource = dataTable;
+
+                StringBuilder stringBuilder = new StringBuilder();
+
+                stringBuilder.AppendLine($"Atrasos: {listCalculo.Select(x => x.MinAtraso).Sum():n2} min.");
+                stringBuilder.AppendLine($"Extra: {listCalculo.Select(x => x.MinExtra50).Sum():n2} min. | {listCalculo.Select(x => x.MinExtra50).Sum()/60:n2} horas");
+
+                MessageBox.Show($"{stringBuilder}");
             }
             catch (Exception ex)
             {
