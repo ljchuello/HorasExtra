@@ -85,5 +85,8 @@
       <Name>Libreria</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="201901.TXT" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
